@@ -12,6 +12,8 @@
     "core:path:default",
     "core:menu:default",
     "core:tray:default",
-    "opener:default"
+    "opener:default",
+    "fs:default",
+    "shell:default"
   ]
 }

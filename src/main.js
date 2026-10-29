@@ -1,28 +1,58 @@
 const { invoke } = window.__TAURI__.core;
-const { systemTray } = window.__TAURI__.systemTray; // Assuming systemTray is exposed by the plugin
+const { isPermissionGranted, requestPermission, sendNotification } = window.__TAURI__.notification;
 
-let greetInputEl;
-let greetMsgEl;
+let balanceEl;
+let gameMsgEl;
+let betAmountEl;
 
-async function greet() {
-  // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-  greetMsgEl.textContent = await invoke("greet", { name: greetInputEl.value });
+async function checkNotificationPermission() {
+  let permission = await isPermissionGranted();
+  if (!permission) {
+    const permissionResponse = await requestPermission();
+    permission = permissionResponse === 'granted';
+  }
+  return permission;
 }
 
-// System Tray Configuration
-const trayConfig = {
-  iconPath: '/icons/icon.png', // Placeholder path
-  displayName: 'Kladionica',
-  statusIconPath: '/icons/status.png', // Placeholder path
-};
+async function notify(title, body) {
+  if (await checkNotificationPermission()) {
+    sendNotification({ title, body });
+  }
+}
 
-systemTray.create(trayConfig);
+async function placeBet(event) {
+  event.preventDefault();
+  
+  const amount = parseInt(betAmountEl.value, 10);
+  if (isNaN(amount) || amount <= 0) {
+    gameMsgEl.textContent = "Please enter a valid amount.";
+    return;
+  }
+
+  try {
+    const result = await invoke("place_bet", { amount });
+    
+    // Update UI
+    balanceEl.textContent = result.new_balance;
+    
+    if (result.win) {
+      gameMsgEl.textContent = `WIN! You won $${result.amount}!`;
+      gameMsgEl.parentElement.className = "status-card win";
+      notify("🎰 BIG WIN! 🎰", `You won $${result.amount}!`);
+    } else {
+      gameMsgEl.textContent = `LOSS. You lost $${result.amount}.`;
+      gameMsgEl.parentElement.className = "status-card loss";
+    }
+  } catch (err) {
+    gameMsgEl.textContent = `Error: ${err}`;
+    gameMsgEl.parentElement.className = "status-card error";
+  }
+}
 
 window.addEventListener("DOMContentLoaded", () => {
-  greetInputEl = document.querySelector("#greet-input");
-  greetMsgEl = document.querySelector("#greet-msg");
-  document.querySelector("#greet-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    greet();
-  });
+  balanceEl = document.querySelector("#balance-val");
+  gameMsgEl = document.querySelector("#game-msg");
+  betAmountEl = document.querySelector("#bet-amount");
+  
+  document.querySelector("#bet-form").addEventListener("submit", placeBet);
 });
